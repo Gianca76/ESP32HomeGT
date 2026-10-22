@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Arduino.h>
+#include <ArduinoJson.h>
 #include <Preferences.h>
 #include <WebSocketsClient.h>
 
@@ -22,10 +23,17 @@ public:
   void onNetworkDisconnected();
   void loop();
   void reportLocalState(uint8_t relayNumber, bool enabled);
+  bool isSubscribed() const;
+  uint32_t receivedBroadcastCount() const;
+  uint32_t receivedTextFrameCount() const;
+  uint32_t receivedBinaryFrameCount() const;
+  uint32_t parsedBroadcastCount() const;
 
 private:
   void handleWebSocketEvent(WStype_t type, uint8_t* payload, size_t length);
   void handleMessage(const uint8_t* payload, size_t length);
+  void handleBinaryMessage(const uint8_t* payload, size_t length);
+  void handleBroadcast(const String& topic, const String& event, JsonVariantConst payload);
   void sendJoin();
   void sendHeartbeat();
   void sendAccessToken();
@@ -56,4 +64,8 @@ private:
   bool pendingReports_[4] = {false, false, false, false};
   bool pendingStates_[4] = {false, false, false, false};
   String pendingSources_[4];
+  uint32_t receivedBroadcastCount_ = 0;
+  uint32_t receivedTextFrameCount_ = 0;
+  uint32_t receivedBinaryFrameCount_ = 0;
+  uint32_t parsedBroadcastCount_ = 0;
 };

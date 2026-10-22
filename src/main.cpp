@@ -80,7 +80,13 @@ void sendRelayStatus() {
     if (i) json += ",";
     json += relayStates[i] ? "true" : "false";
   }
-  json += "]}";
+  json += "]";
+  json += ",\"realtime\":";
+  json += relayRealtime.isSubscribed() ? "true" : "false";
+  json += ",\"broadcasts\":" + String(relayRealtime.receivedBroadcastCount());
+  json += ",\"parsedBroadcasts\":" + String(relayRealtime.parsedBroadcastCount());
+  json += ",\"wsTextFrames\":" + String(relayRealtime.receivedTextFrameCount());
+  json += ",\"wsBinaryFrames\":" + String(relayRealtime.receivedBinaryFrameCount()) + "}";
   server.send(200, "application/json", json);
 }
 
@@ -118,7 +124,7 @@ void sendInfo() {
 void setup() {
   Serial.begin(115200);
 
-  if (!LittleFS.begin(false, "/littlefs", 10, "littlefs_data")) {
+  if (!LittleFS.begin(false, "/littlefs", 10, "littlefs")) {
     Serial.println("Errore montaggio LittleFS");
   }
 

@@ -101,14 +101,42 @@ void RelayRealtime::reportLocalState(uint8_t relayNumber, bool enabled) {
   queueReport(relayNumber, enabled, "local");
 }
 
+bool RelayRealtime::isSubscribed() const {
+  return joined_;
+}
+
+uint32_t RelayRealtime::receivedBroadcastCount() const {
+  return receivedBroadcastCount_;
+}
+
+uint32_t RelayRealtime::receivedTextFrameCount() const {
+  return receivedTextFrameCount_;
+}
+
+uint32_t RelayRealtime::receivedBinaryFrameCount() const {
+  return receivedBinaryFrameCount_;
+}
+
+uint32_t RelayRealtime::parsedBroadcastCount() const {
+  return parsedBroadcastCount_;
+}
+
 void RelayRealtime::handleWebSocketEvent(WStype_t type, uint8_t* payload, size_t length) {
   if (type == WStype_CONNECTED) {
+    Serial.println("Supabase Realtime: WebSocket connesso");
     joined_ = false;
     sendJoin();
   } else if (type == WStype_DISCONNECTED) {
+    Serial.println("Supabase Realtime: WebSocket disconnesso");
     joined_ = false;
   } else if (type == WStype_TEXT) {
+    receivedTextFrameCount_++;
     handleMessage(payload, length);
+  } else if (type == WStype_BIN) {
+    receivedBinaryFrameCount_++;
+    handleBinaryMessage(payload, length);
+  } else if (type == WStype_ERROR) {
+    Serial.println("Supabase Realtime: errore WebSocket");
   }
 }
 
@@ -144,19 +172,69 @@ void RelayRealtime::handleMessage(const uint8_t* payload, size_t length) {
     return;
   }
 
-  if (strcmp(event, "broadcast") != 0 || eventPayload["event"] != "relay_state") {
+  if (strcmp(event, "broadcast") != 0) {
     return;
   }
 
-  JsonObjectConst state = eventPayload["payload"].as<JsonObjectConst>();
+  const String topic = frameTopic.startsWith("realtime:")
+      ? frameTopic.substring(String("realtime:").length())
+      : frameTopic;
+  const String eventName = eventPayload["event"] | "";
+  handleBroadcast(topic, eventName, eventPayload["payload"].as<JsonVariantConst>());
+}
+
+void RelayRealtime::handleBinaryMessage(const uint8_t* payload, size_t length) {
+  if (length < 5 || payload[0] != 0x04 || payload[4] != 0x01) {
+    return;
+  }
+
+  const size_t topicLength = payload[1];
+  const size_t eventLength = payload[2];
+  const size_t metadataLength = payload[3];
+  const size_t headerLength = 5 + topicLength + eventLength + metadataLength;
+  if (headerLength > length) {
+    return;
+  }
+
+  size_t offset = 5;
+  String topic(reinterpret_cast<const char*>(payload + offset), topicLength);
+  if (topic.startsWith("realtime:")) {
+    topic.remove(0, String("realtime:").length());
+  }
+  offset += topicLength;
+  const String event(reinterpret_cast<const char*>(payload + offset), eventLength);
+  offset += eventLength + metadataLength;
+
+  JsonDocument eventPayload;
+  if (deserializeJson(eventPayload, payload + offset, length - offset)) {
+    return;
+  }
+
+  handleBroadcast(topic, event, eventPayload.as<JsonVariantConst>());
+}
+
+void RelayRealtime::handleBroadcast(
+    const String& topic, const String& event, JsonVariantConst payload) {
+  parsedBroadcastCount_++;
+  if (topic != topic_ || (event != "relay_state" && event != "device_presence")) {
+    return;
+  }
+
+  JsonObjectConst state = payload.as<JsonObjectConst>();
   if (state["device_id"] != config_.deviceId) {
+    return;
+  }
+  receivedBroadcastCount_++;
+
+  if (event == "device_presence") {
+    Serial.println("Supabase Realtime: presenza dispositivo aggiornata");
     return;
   }
 
   const uint8_t relayNumber = state["relay_number"] | 0;
   const bool desiredState = state["desired_state"] | false;
-  if (relayNumber >= 1 && relayNumber <= 4 && targetHandler_ != nullptr &&
-      targetHandler_(relayNumber, desiredState)) {
+  if (relayNumber >= 1 && relayNumber <= 4 && targetHandler_ != nullptr) {
+    targetHandler_(relayNumber, desiredState);
     queueReport(relayNumber, desiredState, "remote");
   }
 }
