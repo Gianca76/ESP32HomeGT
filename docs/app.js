@@ -27,8 +27,11 @@ function renderRelay(relayNumber) {
     button.type = "button";
     button.className = "relay";
     button.dataset.relay = relayNumber;
-    button.innerHTML = `<span class="relay-top"><span class="number">${String(relayNumber).padStart(2, "0")}</span><span class="switch" aria-hidden="true"></span></span><span class="name">Relè ${relayNumber}</span><span class="relay-state"></span>`;
-    button.addEventListener("click", () => changeTarget(relayNumber));
+    const name = relayNumber === 1 ? "Tapparella · salita"
+      : relayNumber === 2 ? "Tapparella · discesa" : `Relè ${relayNumber}`;
+    button.innerHTML = `<span class="relay-top"><span class="number">${String(relayNumber).padStart(2, "0")}</span><span class="switch" aria-hidden="true"></span></span><span class="name">${name}</span><span class="relay-state"></span>`;
+    button.setAttribute("aria-disabled", String(relayNumber <= 2));
+    if (relayNumber > 2) button.addEventListener("click", () => changeTarget(relayNumber));
     relayGrid.append(button);
   }
 

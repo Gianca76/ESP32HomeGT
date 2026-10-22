@@ -13,12 +13,15 @@ constexpr uint32_t HEARTBEAT_INTERVAL_MS = 20000;
 constexpr time_t VALID_TIME_EPOCH = 1700000000;
 }
 
-bool RelayRealtime::begin(const RelayRealtimeConfig& config, RelayTargetHandler targetHandler) {
+bool RelayRealtime::begin(const RelayRealtimeConfig& config, RelayTargetHandler targetHandler,
+                          BlindCommandHandler blindCommandHandler) {
   config_ = config;
   targetHandler_ = targetHandler;
+  blindCommandHandler_ = blindCommandHandler;
   topic_ = String("device:") + config_.deviceId;
   preferences_.begin("sb-relay", false);
   refreshToken_ = preferences_.getString("refresh", "");
+  lastBlindCommandId_ = preferences_.getULong64("blindcmd", 0);
   webSocket_.onEvent([this](WStype_t type, uint8_t* payload, size_t length) {
     handleWebSocketEvent(type, payload, length);
   });
@@ -47,6 +50,10 @@ void RelayRealtime::onNetworkDisconnected() {
   authPending_ = true;
 }
 
+void RelayRealtime::setNetworkWorkDeferred(bool deferred) {
+  networkWorkDeferred_ = deferred;
+}
+
 void RelayRealtime::loop() {
   if (WiFi.status() != WL_CONNECTED) {
     return;
@@ -57,7 +64,7 @@ void RelayRealtime::loop() {
   }
 
   const uint32_t now = millis();
-  if (authPending_ && static_cast<int32_t>(now - nextAuthAttempt_) >= 0 &&
+  if (!networkWorkDeferred_ && authPending_ && static_cast<int32_t>(now - nextAuthAttempt_) >= 0 &&
       time(nullptr) >= VALID_TIME_EPOCH) {
     nextAuthAttempt_ = now + AUTH_RETRY_MS;
     if (authenticate()) {
@@ -71,7 +78,8 @@ void RelayRealtime::loop() {
     }
   }
 
-  if (!accessToken_.isEmpty() && static_cast<int32_t>(now - tokenRefreshAt_) >= 0) {
+  if (!networkWorkDeferred_ && !accessToken_.isEmpty() &&
+      static_cast<int32_t>(now - tokenRefreshAt_) >= 0) {
     if (requestToken(true)) {
       if (joined_) sendAccessToken();
     } else {
@@ -89,8 +97,8 @@ void RelayRealtime::loop() {
     nextHeartbeatAt_ = now + HEARTBEAT_INTERVAL_MS;
   }
 
-  processPendingReports();
-  if (joined_ && snapshotPending_ && !pendingReports_[0] && !pendingReports_[1] &&
+  if (!networkWorkDeferred_) processPendingReports();
+  if (!networkWorkDeferred_ && joined_ && snapshotPending_ && !pendingReports_[0] && !pendingReports_[1] &&
       !pendingReports_[2] && !pendingReports_[3]) {
     snapshotPending_ = false;
     loadRelaySnapshot();
@@ -216,7 +224,8 @@ void RelayRealtime::handleBinaryMessage(const uint8_t* payload, size_t length) {
 void RelayRealtime::handleBroadcast(
     const String& topic, const String& event, JsonVariantConst payload) {
   parsedBroadcastCount_++;
-  if (topic != topic_ || (event != "relay_state" && event != "device_presence")) {
+  if (topic != topic_ || (event != "relay_state" && event != "device_presence" &&
+                          event != "blind_command")) {
     return;
   }
 
@@ -231,9 +240,19 @@ void RelayRealtime::handleBroadcast(
     return;
   }
 
+  if (event == "blind_command") {
+    const uint64_t commandId = state["command_id"] | 0;
+    const uint32_t targetPosition = state["target_position"] | 255;
+    const uint32_t fullTravelMs = state["full_travel_ms"] | 0;
+    if (targetPosition <= 100) {
+      processBlindCommand(commandId, static_cast<uint8_t>(targetPosition), fullTravelMs);
+    }
+    return;
+  }
+
   const uint8_t relayNumber = state["relay_number"] | 0;
   const bool desiredState = state["desired_state"] | false;
-  if (relayNumber >= 1 && relayNumber <= 4 && targetHandler_ != nullptr) {
+  if (relayNumber >= 3 && relayNumber <= 4 && targetHandler_ != nullptr) {
     targetHandler_(relayNumber, desiredState);
     queueReport(relayNumber, desiredState, "remote");
   }
@@ -379,11 +398,77 @@ bool RelayRealtime::loadRelaySnapshot() {
   for (JsonObjectConst row : snapshot.as<JsonArrayConst>()) {
     const uint8_t relayNumber = row["relay_number"] | 0;
     const bool desiredState = row["desired_state"] | false;
-    if (relayNumber >= 1 && relayNumber <= 4 && targetHandler_ != nullptr) {
+    if (relayNumber >= 1 && relayNumber <= 2) {
+      queueReport(relayNumber, false, "local");
+    } else if (relayNumber >= 3 && relayNumber <= 4 && targetHandler_ != nullptr) {
       targetHandler_(relayNumber, desiredState);
       queueReport(relayNumber, desiredState, "reconcile");
     }
   }
+  loadRecentBlindCommand();
+  return true;
+}
+
+bool RelayRealtime::loadRecentBlindCommand() {
+  WiFiClientSecure secureClient;
+  secureClient.useBuiltinCACertBundle();
+
+  HTTPClient http;
+  const String endpoint = String(config_.supabaseUrl) +
+      "/rest/v1/rpc/get_recent_blind_command";
+  if (!http.begin(secureClient, endpoint)) {
+    return false;
+  }
+
+  JsonDocument request;
+  request["p_device_id"] = config_.deviceId;
+  String body;
+  serializeJson(request, body);
+
+  http.setConnectTimeout(5000);
+  http.setTimeout(8000);
+  http.addHeader("apikey", config_.publishableKey);
+  http.addHeader("Authorization", String("Bearer ") + accessToken_);
+  http.addHeader("Content-Type", "application/json");
+  const int status = http.POST(body);
+  const String response = http.getString();
+  http.end();
+
+  if (status < 200 || status >= 300) {
+    Serial.printf("Lettura ultimo comando tapparella: HTTP %d\n", status);
+    return false;
+  }
+
+  JsonDocument commandSnapshot;
+  if (deserializeJson(commandSnapshot, response)) {
+    return false;
+  }
+  const JsonArrayConst commands = commandSnapshot.as<JsonArrayConst>();
+  if (commands.isNull() || commands.size() == 0) {
+    return true;
+  }
+
+  const JsonObjectConst command = commands[0];
+  const uint64_t commandId = command["command_id"] | 0;
+  const uint32_t targetPosition = command["target_position"] | 255;
+  const uint32_t fullTravelMs = command["full_travel_ms"] | 0;
+  return targetPosition <= 100 && processBlindCommand(
+      commandId, static_cast<uint8_t>(targetPosition), fullTravelMs);
+}
+
+bool RelayRealtime::processBlindCommand(
+    uint64_t commandId, uint8_t targetPosition, uint32_t fullTravelMs) {
+  if (commandId == 0 || commandId <= lastBlindCommandId_ ||
+      targetHandler_ == nullptr || blindCommandHandler_ == nullptr) {
+    return false;
+  }
+
+  if (!blindCommandHandler_(commandId, targetPosition, fullTravelMs)) {
+    return false;
+  }
+
+  lastBlindCommandId_ = commandId;
+  preferences_.putULong64("blindcmd", commandId);
   return true;
 }
 

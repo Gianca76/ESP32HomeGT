@@ -35,6 +35,15 @@ constexpr uint8_t RELAY_OFF_LEVEL = LOW;
 
 bool relayStates[] = {false, false, false, false};
 bool networkServicesStarted = false;
+enum class BlindPhase : uint8_t { Idle, HoldUp, HoldDown, WaitForTarget, StopPulse };
+constexpr uint32_t BLIND_HOLD_MS = 3200;
+constexpr uint32_t BLIND_STOP_PULSE_MS = 250;
+constexpr uint32_t BLIND_MIN_TRAVEL_MS = 1000;
+constexpr uint32_t BLIND_MAX_TRAVEL_MS = 120000;
+BlindPhase blindPhase = BlindPhase::Idle;
+uint32_t blindPhaseStartedAt = 0;
+uint32_t blindTargetDelayMs = 0;
+uint8_t blindTargetPosition = 0;
 
 bool applyRelayTarget(uint8_t relayNumber, bool enabled) {
   if (relayNumber < 1 || relayNumber > 4) {
@@ -49,6 +58,72 @@ bool applyRelayTarget(uint8_t relayNumber, bool enabled) {
   relayStates[index] = enabled;
   digitalWrite(RELAY_PINS[index], enabled ? RELAY_ON_LEVEL : RELAY_OFF_LEVEL);
   return true;
+}
+
+void setRelayOutput(uint8_t relayNumber, bool enabled) {
+  if (enabled && relayNumber <= 2) {
+    const uint8_t oppositeRelay = relayNumber == 1 ? 2 : 1;
+    if (applyRelayTarget(oppositeRelay, false)) {
+      relayRealtime.reportLocalState(oppositeRelay, false);
+    }
+  }
+
+  if (applyRelayTarget(relayNumber, enabled)) {
+    relayRealtime.reportLocalState(relayNumber, enabled);
+  }
+}
+
+bool startBlindCommand(uint64_t commandId, uint8_t targetPosition, uint32_t fullTravelMs) {
+  const bool needsTravelEstimate = targetPosition > 0 && targetPosition < 100;
+  const bool validTravel = fullTravelMs >= BLIND_MIN_TRAVEL_MS &&
+                           fullTravelMs <= BLIND_MAX_TRAVEL_MS;
+  if (targetPosition > 100 || (needsTravelEstimate && !validTravel) ||
+      (!needsTravelEstimate && fullTravelMs != 0 && !validTravel)) {
+    return false;
+  }
+
+  setRelayOutput(1, false);
+  setRelayOutput(2, false);
+  relayRealtime.setNetworkWorkDeferred(true);
+  blindPhase = targetPosition == 0 ? BlindPhase::HoldDown : BlindPhase::HoldUp;
+  blindTargetPosition = targetPosition;
+  blindTargetDelayMs = static_cast<uint32_t>(
+      (static_cast<uint64_t>(fullTravelMs) * targetPosition) / 100);
+  blindPhaseStartedAt = millis();
+  setRelayOutput(targetPosition == 0 ? 2 : 1, true);
+  return true;
+}
+
+void finishBlindSequence() {
+  blindPhase = BlindPhase::Idle;
+  blindTargetPosition = 0;
+  blindTargetDelayMs = 0;
+  relayRealtime.setNetworkWorkDeferred(false);
+}
+
+void processBlindScenario() {
+  const uint32_t now = millis();
+  if (blindPhase == BlindPhase::HoldUp && now - blindPhaseStartedAt >= BLIND_HOLD_MS) {
+    setRelayOutput(1, false);
+    if (blindTargetPosition > 0 && blindTargetPosition < 100) {
+      blindPhase = BlindPhase::WaitForTarget;
+      blindPhaseStartedAt = now;
+    } else {
+      finishBlindSequence();
+    }
+  } else if (blindPhase == BlindPhase::HoldDown && now - blindPhaseStartedAt >= BLIND_HOLD_MS) {
+    setRelayOutput(2, false);
+    finishBlindSequence();
+  } else if (blindPhase == BlindPhase::WaitForTarget &&
+             now - blindPhaseStartedAt >= blindTargetDelayMs) {
+    blindPhase = BlindPhase::StopPulse;
+    blindPhaseStartedAt = now;
+    setRelayOutput(2, true);
+  } else if (blindPhase == BlindPhase::StopPulse &&
+             now - blindPhaseStartedAt >= BLIND_STOP_PULSE_MS) {
+    setRelayOutput(2, false);
+    finishBlindSequence();
+  }
 }
 
 void sendPage(const char* path) {
@@ -91,6 +166,11 @@ void sendRelayStatus() {
 }
 
 void handleRelay(int index) {
+  if (index < 2) {
+    server.send(409, "application/json", "{\"error\":\"usa i comandi tapparella\"}");
+    return;
+  }
+
   if (!server.hasArg("state")) {
     server.send(400, "application/json", "{\"error\":\"state mancante\"}");
     return;
@@ -101,6 +181,22 @@ void handleRelay(int index) {
   digitalWrite(RELAY_PINS[index], enabled ? RELAY_ON_LEVEL : RELAY_OFF_LEVEL);
   relayRealtime.reportLocalState(static_cast<uint8_t>(index + 1), enabled);
   sendRelayStatus();
+}
+
+void handleBlindCommand() {
+  if (!server.hasArg("target_position") || !server.hasArg("full_travel_ms")) {
+    server.send(400, "application/json", "{\"error\":\"posizione o tempo di corsa mancanti\"}");
+    return;
+  }
+
+  const uint32_t targetPosition = strtoul(server.arg("target_position").c_str(), nullptr, 10);
+  const uint32_t fullTravelMs = strtoul(server.arg("full_travel_ms").c_str(), nullptr, 10);
+  if (targetPosition > 100 || !startBlindCommand(0, static_cast<uint8_t>(targetPosition), fullTravelMs)) {
+    server.send(400, "application/json", "{\"error\":\"posizione o tempo di corsa non valido\"}");
+    return;
+  }
+
+  server.send(202, "application/json", "{\"accepted\":true}");
 }
 
 void sendInfo() {
@@ -134,7 +230,7 @@ void setup() {
     pinMode(RELAY_PINS[i], OUTPUT);
   }
 
-  relayRealtime.begin(RELAY_REALTIME_CONFIG, applyRelayTarget);
+  relayRealtime.begin(RELAY_REALTIME_CONFIG, applyRelayTarget, startBlindCommand);
 
   if (!deviceNetwork.begin(DEVICE_NETWORK_CONFIG)) {
     Serial.println("Nessuna rete Wi-Fi disponibile; nuovi tentativi in corso");
@@ -144,12 +240,17 @@ void setup() {
     sendPage("/index.html");
   });
 
+  server.on("/blinds", HTTP_GET, []() {
+    sendPage("/blinds.html");
+  });
+
   server.on("/info", HTTP_GET, []() {
     sendPage("/info.html");
   });
 
   server.on("/api/status", HTTP_GET, sendRelayStatus);
   server.on("/api/info", HTTP_GET, sendInfo);
+  server.on("/api/blinds", HTTP_POST, handleBlindCommand);
 
   server.on("/api/relay/1", HTTP_POST, []() { handleRelay(0); });
   server.on("/api/relay/2", HTTP_POST, []() { handleRelay(1); });
@@ -165,6 +266,7 @@ void setup() {
 }
 
 void loop() {
+  processBlindScenario();
   deviceNetwork.loop();
 
   if (deviceNetwork.consumeDisconnectionEvent()) {
@@ -190,9 +292,11 @@ void loop() {
   }
 
   relayRealtime.loop();
+  processBlindScenario();
 
   if (networkServicesStarted) {
     ArduinoOTA.handle();
   }
   server.handleClient();
+  processBlindScenario();
 }

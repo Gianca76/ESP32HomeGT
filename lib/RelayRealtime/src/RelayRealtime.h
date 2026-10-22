@@ -15,13 +15,17 @@ struct RelayRealtimeConfig {
 };
 
 using RelayTargetHandler = bool (*)(uint8_t relayNumber, bool enabled);
+using BlindCommandHandler = bool (*)(uint64_t commandId, uint8_t targetPosition,
+                                     uint32_t fullTravelMs);
 
 class RelayRealtime {
 public:
-  bool begin(const RelayRealtimeConfig& config, RelayTargetHandler targetHandler);
+  bool begin(const RelayRealtimeConfig& config, RelayTargetHandler targetHandler,
+             BlindCommandHandler blindCommandHandler);
   void onNetworkConnected();
   void onNetworkDisconnected();
   void loop();
+  void setNetworkWorkDeferred(bool deferred);
   void reportLocalState(uint8_t relayNumber, bool enabled);
   bool isSubscribed() const;
   uint32_t receivedBroadcastCount() const;
@@ -40,6 +44,8 @@ private:
   bool authenticate();
   bool requestToken(bool refresh);
   bool loadRelaySnapshot();
+  bool loadRecentBlindCommand();
+  bool processBlindCommand(uint64_t commandId, uint8_t targetPosition, uint32_t fullTravelMs);
   bool reportRelayState(uint8_t relayNumber, bool enabled, const char* source);
   void queueReport(uint8_t relayNumber, bool enabled, const char* source);
   void processPendingReports();
@@ -49,6 +55,7 @@ private:
   Preferences preferences_;
   RelayRealtimeConfig config_{};
   RelayTargetHandler targetHandler_ = nullptr;
+  BlindCommandHandler blindCommandHandler_ = nullptr;
   String accessToken_;
   String refreshToken_;
   String topic_;
@@ -56,10 +63,12 @@ private:
   bool joined_ = false;
   bool snapshotPending_ = false;
   bool authPending_ = false;
+  bool networkWorkDeferred_ = false;
   uint32_t nextAuthAttempt_ = 0;
   uint32_t tokenRefreshAt_ = 0;
   uint32_t nextHeartbeatAt_ = 0;
   uint32_t nextReportAttempt_ = 0;
+  uint64_t lastBlindCommandId_ = 0;
   uint32_t messageRef_ = 1;
   bool pendingReports_[4] = {false, false, false, false};
   bool pendingStates_[4] = {false, false, false, false};

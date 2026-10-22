@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#eff2e9">
+  <title>Tapparelle · Relay Studio</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root { color-scheme:light; --paper:#eff2e9; --ink:#1d2a24; --muted:#69766e; --green:#2c5544; --lime:#d3ed6a; --line:#20332a26; --red:#a64e42; --white:#fbfcf8 }
+    * { box-sizing:border-box }
+    body { margin:0; min-height:100vh; color:var(--ink); background:radial-gradient(ellipse at 8% 0,#d9e4c1 0,transparent 35%),radial-gradient(ellipse at 100% 48%,#d8e6df 0,transparent 31%),var(--paper); font:15px/1.5 "DM Sans",sans-serif }
+    button,input,select { font:inherit }
+    button { color:inherit }
+    [hidden] { display:none !important }
+    .shell { width:min(100% - 32px,1040px); margin:auto; padding:22px 0 42px }
+    header,.brand,.nav,.connection,.toolbar { display:flex; align-items:center }
+    header { justify-content:space-between; gap:18px }
+    .brand { gap:10px; font:800 15px "Manrope",sans-serif }
+    .mark { display:grid; place-items:center; width:38px; height:38px; border-radius:9px; color:var(--lime); background:var(--green); font-size:21px }
+    .nav { gap:4px; padding:4px; border:1px solid var(--line); border-radius:9px; background:#ffffff88 }
+    .nav a { padding:7px 11px; border-radius:6px; color:var(--muted); text-decoration:none; font-size:12px; font-weight:700 }
+    .nav a.active { color:var(--ink); background:#dce7ca }
+    .connection { gap:8px; color:var(--muted); font-size:12px }
+    .dot { width:8px; height:8px; border-radius:50%; background:#9aa59e }
+    .connection[data-state="live"] .dot { background:#49916c; box-shadow:0 0 0 4px #49916c20 }
+    .connection[data-state="error"] .dot { background:var(--red) }
+    .intro { padding:40px 0 22px }
+    .eyebrow { color:var(--green); font-size:11px; font-weight:800; letter-spacing:.12em; text-transform:uppercase }
+    h1,h2 { font-family:"Manrope",sans-serif }
+    h1 { margin:8px 0 6px; font-size:clamp(30px,5vw,46px); line-height:1.08 }
+    .muted { margin:0; color:var(--muted); font-size:14px }
+    .panel { border:1px solid var(--line); border-radius:10px; background:#ffffff8a; padding:20px }
+    .login { max-width:420px; margin:12px auto 0 }
+    .login h2 { margin:0 0 14px; font-size:19px }
+    .field { display:grid; gap:6px; margin-top:12px; color:#34443b; font-size:12px; font-weight:600 }
+    input,select { width:100%; min-height:42px; padding:9px 11px; border:1px solid var(--line); border-radius:7px; color:var(--ink); background:var(--white) }
+    input:focus-visible,select:focus-visible,button:focus-visible,a:focus-visible { outline:2px solid #557d50; outline-offset:2px }
+    .primary { min-height:42px; padding:0 16px; border:0; border-radius:7px; color:#f8fbe9; background:var(--green); font-weight:750; cursor:pointer }
+    .primary:disabled { opacity:.55; cursor:wait }
+    .login .primary { width:100%; margin-top:15px }
+    .error { min-height:20px; margin:10px 0 0; color:var(--red); font-size:12px }
+    .toolbar { justify-content:space-between; gap:16px; margin:22px 0 15px }
+    .device-picker { width:min(100%,380px); margin:0 }
+    .signout { min-height:36px; padding:0 12px; border:1px solid var(--line); border-radius:7px; background:#ffffff80; cursor:pointer }
+    .device-meta { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:16px; color:var(--muted); font-size:11px }
+    .device-meta span { padding:5px 9px; border:1px solid var(--line); border-radius:6px; background:#ffffff78 }
+    .console { display:grid; grid-template-columns:minmax(230px,.8fr) minmax(0,1.2fr); gap:34px; align-items:center; min-width:0; padding:26px; border:1px solid var(--line); border-radius:10px; background:var(--white) }
+    .console > * { min-width:0 }
+    .preview { display:grid; justify-items:center; gap:13px }
+    .window { position:relative; width:min(100%,250px); aspect-ratio:4/5; padding:13px; border:6px solid #65776c; border-radius:7px; background:#d2d8cf; box-shadow:0 16px 30px #263e3224 }
+    .glass { position:absolute; inset:13px; overflow:hidden; background:linear-gradient(150deg,#b6d6c7 0,#83b3a3 55%,#598878 100%) }
+    .glass::before,.glass::after { content:""; position:absolute; bottom:0; width:46%; height:39%; background:#426856; clip-path:polygon(50% 0,100% 100%,0 100%) }
+    .glass::before { left:4% }
+    .glass::after { right:4%; height:50%; background:#547564 }
+    .shade { position:absolute; z-index:1; top:0; left:0; width:100%; height:var(--shade-height,100%); border-bottom:4px solid #9da99d; background:repeating-linear-gradient(to bottom,#56645d 0 11px,#758278 11px 14px); transition:height .55s ease }
+    .position-readout { color:var(--green); font:800 13px "Manrope",sans-serif }
+    .controls h2 { margin:0 0 4px; font-size:19px }
+    .controls > p { margin:0; color:var(--muted); font-size:12px }
+    .positions { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:8px; margin:18px 0 20px }
+    .position { min-width:0; min-height:68px; padding:7px 4px; border:1px solid var(--line); border-radius:7px; background:#f3f5ee; cursor:pointer; transition:transform .15s,border-color .15s,background .15s }
+    .position:hover { transform:translateY(-2px); border-color:#73925c }
+    .position[aria-pressed="true"] { border-color:var(--green); color:var(--lime); background:var(--green) }
+    .position strong { display:block; font:800 17px "Manrope",sans-serif }
+    .position span { display:block; overflow-wrap:anywhere; margin-top:2px; font-size:9px; line-height:1.15 }
+    .position:disabled { opacity:.6; cursor:wait; transform:none }
+    .travel-field { display:grid; grid-template-columns:1fr 116px; align-items:center; gap:14px; padding-top:15px; border-top:1px solid var(--line); font-size:12px; font-weight:650 }
+    .unit { display:block; margin-top:2px; color:var(--muted); font-size:10px; font-weight:400 }
+    .notice { min-height:36px; margin:14px 0 0; color:var(--muted); font-size:12px }
+    .notice[data-state="ok"] { color:var(--green) }
+    .notice[data-state="error"] { color:var(--red) }
+    footer { margin-top:18px; color:var(--muted); font-size:11px }
+    @media(max-width:700px) { header { flex-wrap:wrap } .connection { margin-left:auto } .console { grid-template-columns:1fr; gap:23px; padding:19px } .window { width:155px } .intro { padding-top:30px } }
+    @media(max-width:400px) { .shell { width:calc(100% - 20px) } header { gap:10px } .brand { font-size:13px } .nav a { padding:7px 8px } .positions { gap:5px } .position { min-height:62px } .position span { font-size:8px } .toolbar { align-items:stretch; flex-direction:column } }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <header>
+      <div class="brand"><span class="mark">ϟ</span><span>Relay Studio</span></div>
+      <nav class="nav"><a class="active" href="./blinds.html">Tapparelle</a><a href="./">Relè</a></nav>
+      <div id="connection" class="connection" data-state="offline" role="status"><span class="dot"></span><span id="connection-label">Disconnesso</span></div>
+    </header>
+    <section class="intro">
+      <div class="eyebrow">Controllo remoto · ESP32</div>
+      <h1>Apri la luce.</h1>
+      <p class="muted">Un obiettivo di posizione alla volta. La sequenza viene eseguita dalla scheda.</p>
+    </section>
+    <section id="login-panel" class="panel login">
+      <h2>Accedi</h2>
+      <form id="login-form">
+        <label class="field">Email<input name="email" type="email" autocomplete="username" required></label>
+        <label class="field">Password<input name="password" type="password" autocomplete="current-password" required></label>
+        <button class="primary" type="submit">Accedi</button>
+      </form>
+      <p id="login-error" class="error" aria-live="polite"></p>
+    </section>
+    <main id="dashboard" hidden>
+      <div class="toolbar">
+        <label class="field device-picker">Dispositivo<select id="device-select"></select></label>
+        <button id="signout" class="signout" type="button">Esci</button>
+      </div>
+      <div id="device-meta" class="device-meta" aria-live="polite"></div>
+      <p id="dashboard-error" class="error" aria-live="polite"></p>
+      <section class="console">
+        <div class="preview" aria-hidden="true">
+          <div class="window"><div class="glass"><div id="shade" class="shade"></div></div></div>
+          <div id="position-readout" class="position-readout">Obiettivo · 0%</div>
+        </div>
+        <div class="controls">
+          <h2>Posizione desiderata</h2>
+          <p>La scheda non rileva i movimenti manuali: per una percentuale stimata, parti da tutto giù.</p>
+          <div class="positions" role="group" aria-label="Posizione tapparelle">
+            <button class="position" type="button" data-position="0" aria-pressed="false"><strong>0%</strong><span>Tutto giù</span></button>
+            <button class="position" type="button" data-position="25" aria-pressed="false"><strong>25%</strong><span>Apertura</span></button>
+            <button class="position" type="button" data-position="50" aria-pressed="false"><strong>50%</strong><span>Metà</span></button>
+            <button class="position" type="button" data-position="75" aria-pressed="false"><strong>75%</strong><span>Apertura</span></button>
+            <button class="position" type="button" data-position="100" aria-pressed="false"><strong>100%</strong><span>Tutto su</span></button>
+          </div>
+          <label class="travel-field" for="travel-time"><span>Tempo corsa completa<span class="unit">Da completamente chiusa a aperta</span></span><span><input id="travel-time" type="number" min="1" max="120" step="0.5" inputmode="decimal" placeholder="secondi"><span class="unit">secondi</span></span></label>
+          <p id="notice" class="notice" aria-live="polite">Posizione stimata nel tempo, non misurata da un sensore.</p>
+        </div>
+      </section>
+      <footer>La posizione è stimata nel tempo, non rilevata da un sensore. Ogni comando interrompe la sequenza in corso.</footer>
+    </main>
+  </div>
+  <script type="module" src="./app-blinds.js"></script>
+</body>
+</html>
