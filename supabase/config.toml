@@ -1,0 +1,4 @@
+project_id = "esp32-home-gt"
+
+[functions.register-device]
+verify_jwt = false

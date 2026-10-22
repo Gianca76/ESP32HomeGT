@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#101522">
+  <title>Sistema · Relay Studio</title>
+  <style>
+    :root { color-scheme:dark; --bg:#101522; --panel:#1b2535; --muted:#929db0; --cyan:#75e0d1; --line:#ffffff12 }
+    * { box-sizing:border-box }
+    body { margin:0; min-height:100vh; color:#f4f6fb; background:radial-gradient(ellipse at 10% -10%,#294b59,transparent 38%),var(--bg); font:16px/1.45 system-ui,sans-serif }
+    .wrap { width:min(100% - 28px,620px); margin:auto; padding:22px 0 40px }
+    header { display:flex; align-items:center; justify-content:space-between; gap:10px }
+    .brand { font-weight:750 } nav { display:flex; gap:4px; padding:4px; border:1px solid var(--line); border-radius:14px }
+    nav a { padding:8px 12px; color:var(--muted); text-decoration:none; border-radius:10px; font-size:13px; font-weight:650 }
+    nav a.active { color:#fff; background:#ffffff12 }
+    h1 { margin:36px 0 5px; font-size:34px; letter-spacing:-.04em }
+    .sub { margin:0 0 22px; color:var(--muted); font-size:14px }
+    .grid { display:grid; grid-template-columns:1fr 1fr; gap:10px }
+    .item { padding:15px; border:1px solid var(--line); border-radius:17px; background:var(--panel); min-width:0 }
+    .label { color:var(--muted); font-size:11px; text-transform:uppercase; letter-spacing:.12em }
+    .value { margin-top:7px; overflow-wrap:anywhere; font-size:15px; font-weight:700 }
+    .wide { grid-column:1/-1 }
+    .back { display:block; margin-top:20px; color:var(--cyan); text-decoration:none }
+    @media(max-width:360px) { .grid { grid-template-columns:1fr } .wide { grid-column:auto } }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header><div class="brand">ϟ Relay Studio</div><nav><a href="/">Controllo</a><a class="active" href="/info">Sistema</a></nav></header>
+    <h1>Il sistema</h1>
+    <p class="sub">Stato e informazioni utili sulla scheda.</p>
+    <main class="grid">
+      <div class="item"><div class="label">Indirizzo IP</div><div class="value" id="ip">…</div></div>
+      <div class="item"><div class="label">Wi‑Fi</div><div class="value" id="ssid">…</div></div>
+      <div class="item"><div class="label">Segnale</div><div class="value" id="rssi">…</div></div>
+      <div class="item"><div class="label">Uptime</div><div class="value" id="uptime">…</div></div>
+      <div class="item"><div class="label">Chip</div><div class="value" id="chip">…</div></div>
+      <div class="item"><div class="label">Flash</div><div class="value" id="flash">…</div></div>
+      <div class="item wide"><div class="label">Memoria libera</div><div class="value" id="heap">…</div></div>
+    </main>
+    <a class="back" href="/">← Torna ai controlli</a>
+  </div>
+  <script>
+    async function updateInfo() {
+      const d = await (await fetch("/api/info", {cache:"no-store"})).json();
+      document.getElementById("ip").textContent = d.ip;
+      document.getElementById("ssid").textContent = d.ssid;
+      document.getElementById("rssi").textContent = d.rssi + " dBm";
+      document.getElementById("uptime").textContent = d.uptime;
+      document.getElementById("chip").textContent = d.chip + " · rev. " + d.revision;
+      document.getElementById("flash").textContent = d.flash;
+      document.getElementById("heap").textContent = d.heap;
+    }
+    updateInfo();
+    setInterval(updateInfo, 5000);
+  </script>
+</body>
+</html>
