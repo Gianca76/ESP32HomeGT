@@ -9,6 +9,7 @@ const dashboard = document.querySelector("#dashboard");
 const relayStates = new Map();
 let activeDeviceId = null;
 let activeUserId = null;
+let activeDeviceLoad = 0;
 let deviceChannel = null;
 
 function setConnection(state, label) {
@@ -54,24 +55,7 @@ function renderState(row) {
     : "";
 }
 
-async function loadDevice(deviceId) {
-  activeDeviceId = deviceId;
-  relayStates.clear();
-  relayGrid.replaceChildren();
-  document.querySelector("#dashboard-error").textContent = "";
-  if (deviceChannel) await supabase.removeChannel(deviceChannel);
-
-  const { data: device, error: deviceError } = await supabase
-    .from("devices")
-    .select("device_id, display_name, current_ssid, local_ip, last_seen")
-    .eq("device_id", deviceId)
-    .single();
-
-  if (deviceError) {
-    document.querySelector("#dashboard-error").textContent = deviceError.message;
-    return;
-  }
-
+function renderDeviceMeta(device) {
   const meta = document.querySelector("#device-meta");
   meta.replaceChildren();
   for (const value of [
@@ -84,29 +68,57 @@ async function loadDevice(deviceId) {
     item.textContent = value;
     meta.append(item);
   }
+}
 
-  const { data, error } = await supabase
-    .from("relay_state")
-    .select("device_id, relay_number, desired_state, actual_state, updated_at")
-    .eq("device_id", deviceId)
-    .order("relay_number");
+async function loadDeviceSnapshot(deviceId, loadId) {
+  const [deviceResult, stateResult] = await Promise.all([
+    supabase
+      .from("devices")
+      .select("device_id, display_name, current_ssid, local_ip, last_seen")
+      .eq("device_id", deviceId)
+      .single(),
+    supabase
+      .from("relay_state")
+      .select("device_id, relay_number, desired_state, actual_state, updated_at")
+      .eq("device_id", deviceId)
+      .order("relay_number"),
+  ]);
 
-  if (error) {
-    document.querySelector("#dashboard-error").textContent = error.message;
+  if (loadId !== activeDeviceLoad || deviceId !== activeDeviceId) return;
+  if (deviceResult.error || stateResult.error) {
+    document.querySelector("#dashboard-error").textContent =
+      deviceResult.error?.message || stateResult.error?.message || "Lettura stato non riuscita";
     return;
   }
-  data.forEach(renderState);
+
+  renderDeviceMeta(deviceResult.data);
+  stateResult.data.forEach(renderState);
+}
+
+async function loadDevice(deviceId) {
+  const loadId = ++activeDeviceLoad;
+  activeDeviceId = deviceId;
+  relayStates.clear();
+  relayGrid.replaceChildren();
+  document.querySelector("#dashboard-error").textContent = "";
+  document.querySelector("#updated-at").textContent = "";
+  setConnection("offline", "Connessione Realtime…");
+  if (deviceChannel) await supabase.removeChannel(deviceChannel);
+  if (loadId !== activeDeviceLoad) return;
 
   deviceChannel = supabase
     .channel(`device:${deviceId}`, { config: { private: true } })
     .on("broadcast", { event: "relay_state" }, ({ payload }) => renderState(payload))
     .on("broadcast", { event: "device_presence" }, ({ payload }) => {
       if (payload.device_id !== activeDeviceId) return;
-      loadDevice(activeDeviceId);
+      renderDeviceMeta(payload);
     })
     .subscribe((status, error) => {
-      if (status === "SUBSCRIBED") setConnection("live", "Realtime attivo");
-      else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
+      if (loadId !== activeDeviceLoad) return;
+      if (status === "SUBSCRIBED") {
+        setConnection("live", "Realtime attivo");
+        void loadDeviceSnapshot(deviceId, loadId);
+      } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
         setConnection("error", "Realtime non disponibile");
         if (error) console.error("Realtime subscription error", error);
       }
