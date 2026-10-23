@@ -1,6 +1,6 @@
 const nav = document.querySelector("#site-nav");
 const toggle = document.querySelector(".nav-toggle");
-const stylesheet = document.querySelector('link[href$="theme.css"]');
+const stylesheet = document.querySelector('link[href*="theme.css"]');
 const currentRoute = location.pathname === "/blinds" || location.pathname.endsWith("blinds.html")
   ? "blinds"
   : location.pathname === "/info" || location.pathname.endsWith("info.html")

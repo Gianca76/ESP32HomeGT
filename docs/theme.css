@@ -63,6 +63,15 @@ button:focus-visible, input:focus-visible, select:focus-visible, a:focus-visible
 }
 .nav-toggle { display: none }
 .nav-scrim { display: none }
+header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+}
+header > .brand { flex: 0 0 auto; white-space: nowrap }
+header > .nav-toggle { flex: 0 0 40px; margin-left: auto }
 .shell, .wrap {
   width: min(calc(100% - 270px), 1040px) !important;
   margin: 0 22px 0 248px !important;
@@ -100,10 +109,17 @@ button:focus-visible, input:focus-visible, select:focus-visible, a:focus-visible
   .nav-toggle span { display: block; width: 18px; height: 2px; border-radius: 2px; background: var(--text) }
   .site-nav {
     width: min(78vw, 280px);
-    transform: translateX(-105%);
-    transition: transform .2s ease;
+    left: -110%;
+    visibility: hidden;
+    pointer-events: none;
+    transition: none;
   }
-  body.nav-open .site-nav { transform: translateX(0) }
+  body.nav-open .site-nav {
+    left: 0;
+    visibility: visible;
+    pointer-events: auto;
+    transition: none;
+  }
   .nav-scrim {
     position: fixed;
     z-index: 19;
