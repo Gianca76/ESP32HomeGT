@@ -71,19 +71,21 @@
     @media(max-width:430px) { header { display:grid; grid-template-columns:minmax(0,1fr) auto; } header .brand { grid-column:1; grid-row:1; min-width:0 } header .status { grid-column:2; grid-row:1; min-width:0; justify-content:flex-end; flex-wrap:wrap } header nav { grid-column:1/-1; grid-row:2; width:max-content; max-width:100% } }
     @media(max-width:370px) { header { gap:7px } .brand { gap:7px; font-size:13px } .status { gap:5px; font-size:10px } }
   </style>
+  <link rel="stylesheet" href="./theme.css">
 </head>
 <body>
   <div class="shell">
     <header>
       <div class="brand"><span class="mark">ϟ</span><span>Relay Studio</span></div>
-      <nav><a href="./blinds.html">Tapparelle</a><a class="active" href="./">Relè</a></nav>
+      <button class="nav-toggle" type="button" aria-label="Apri navigazione" aria-expanded="false" aria-controls="site-nav"><span></span><span></span><span></span></button>
+      <nav id="site-nav" class="site-nav"><a href="./" data-route="devices">Dispositivi</a><a href="./blinds.html" data-route="blinds">Tapparelle</a><a href="./system.html" data-route="system">Sistema</a></nav>
       <div id="connection" class="status" data-state="offline" role="status"><span class="status-dot"></span><span id="connection-label">Disconnesso</span></div>
     </header>
 
     <section class="intro">
       <div class="eyebrow">ESP32 · Controllo remoto</div>
-      <h1>Stato dei relè</h1>
-      <p class="muted">Stato desiderato e applicato; i primi due canali azionano le tapparelle.</p>
+      <h1>Dispositivi</h1>
+      <p class="muted">Seleziona un dispositivo per vedere stato e comandi disponibili.</p>
     </section>
 
     <section id="login-panel" class="panel login">
@@ -108,6 +110,7 @@
     </main>
   </div>
 
+  <script src="./site.js" defer></script>
   <script type="module" src="./app.js"></script>
 </body>
 </html>

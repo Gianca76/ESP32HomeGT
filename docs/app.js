@@ -30,8 +30,7 @@ function renderRelay(relayNumber) {
     const name = relayNumber === 1 ? "Tapparella · salita"
       : relayNumber === 2 ? "Tapparella · discesa" : `Relè ${relayNumber}`;
     button.innerHTML = `<span class="relay-top"><span class="number">${String(relayNumber).padStart(2, "0")}</span><span class="switch" aria-hidden="true"></span></span><span class="name">${name}</span><span class="relay-state"></span>`;
-    button.setAttribute("aria-disabled", String(relayNumber <= 2));
-    if (relayNumber > 2) button.addEventListener("click", () => changeTarget(relayNumber));
+    button.addEventListener("click", () => changeTarget(relayNumber));
     relayGrid.append(button);
   }
 
@@ -101,6 +100,7 @@ async function loadDeviceSnapshot(deviceId, loadId) {
 async function loadDevice(deviceId) {
   const loadId = ++activeDeviceLoad;
   activeDeviceId = deviceId;
+  localStorage.setItem("relay-active-device-id", deviceId);
   relayStates.clear();
   relayGrid.replaceChildren();
   document.querySelector("#dashboard-error").textContent = "";
@@ -147,7 +147,10 @@ async function loadDevices() {
     document.querySelector("#dashboard-error").textContent = "Nessun dispositivo assegnato all'account.";
     return;
   }
-  await loadDevice(data[0].device_id);
+  const preferredDeviceId = localStorage.getItem("relay-active-device-id");
+  const activeDevice = data.find((device) => device.device_id === preferredDeviceId) || data[0];
+  devicesSelect.value = activeDevice.device_id;
+  await loadDevice(activeDevice.device_id);
 }
 
 async function changeTarget(relayNumber) {
@@ -157,15 +160,26 @@ async function changeTarget(relayNumber) {
 
   button.disabled = true;
   const desiredState = !current.desired_state;
-  const { error } = await supabase.rpc("set_relay_target", {
-    p_device_id: activeDeviceId,
-    p_relay_number: relayNumber,
-    p_enabled: desiredState,
-  });
+  const { error } = relayNumber <= 2
+    ? await supabase.rpc("request_blind_action", {
+      p_device_id: activeDeviceId,
+      p_action: relayNumber === 1 ? "up" : "down",
+    })
+    : await supabase.rpc("set_relay_target", {
+      p_device_id: activeDeviceId,
+      p_relay_number: relayNumber,
+      p_enabled: desiredState,
+    });
   button.disabled = false;
 
   if (error) {
     document.querySelector("#dashboard-error").textContent = error.message;
+    return;
+  }
+
+  if (relayNumber <= 2) {
+    document.querySelector("#updated-at").textContent =
+      `Comando ${relayNumber === 1 ? "salita" : "discesa"} inviato alla scheda.`;
     return;
   }
 

@@ -15,8 +15,7 @@ struct RelayRealtimeConfig {
 };
 
 using RelayTargetHandler = bool (*)(uint8_t relayNumber, bool enabled);
-using BlindCommandHandler = bool (*)(uint64_t commandId, uint8_t targetPosition,
-                                     uint32_t fullTravelMs);
+using BlindCommandHandler = bool (*)(uint64_t commandId, const char* action);
 
 class RelayRealtime {
 public:
@@ -45,7 +44,7 @@ private:
   bool requestToken(bool refresh);
   bool loadRelaySnapshot();
   bool loadRecentBlindCommand();
-  bool processBlindCommand(uint64_t commandId, uint8_t targetPosition, uint32_t fullTravelMs);
+  bool processBlindCommand(uint64_t commandId, const char* action);
   bool reportRelayState(uint8_t relayNumber, bool enabled, const char* source);
   void queueReport(uint8_t relayNumber, bool enabled, const char* source);
   void processPendingReports();

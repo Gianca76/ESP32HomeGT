@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#101522">
+  <title>Sistema · Relay Studio</title>
+  <style>
+    :root { color-scheme:dark; --bg:#101522; --panel:#1a2232; --text:#f4f6fb; --muted:#929db0; --accent:#75e0d1; --line:#ffffff18; --danger:#ff8585 }
+    * { box-sizing:border-box }
+    body { margin:0; min-height:100vh; color:var(--text); background:var(--bg); font:16px/1.45 system-ui,sans-serif }
+    button,input { font:inherit }
+    .shell { width:min(100% - 28px,760px); margin:auto; padding:22px 0 40px }
+    header { display:flex; align-items:center; gap:13px; min-height:42px }
+    .brand { display:flex; align-items:center; gap:10px; font-weight:750 }
+    .mark { display:grid; place-items:center; width:38px; height:38px; border-radius:10px; color:#10201f; background:linear-gradient(145deg,#a3f4df,#62c9d6); font-size:20px }
+    .intro { padding:34px 2px 22px }
+    .eyebrow { color:var(--accent); font-size:11px; font-weight:800; letter-spacing:.13em; text-transform:uppercase }
+    h1 { margin:8px 0 6px; font-size:32px; line-height:1.08 }
+    .muted { margin:0; color:var(--muted); font-size:14px }
+    .panel { border:1px solid var(--line); border-radius:10px; background:#ffffff08; padding:18px }
+    .login { max-width:420px; margin:8px auto 0 }
+    .login h2 { margin:0 0 14px; font-size:18px }
+    .field { display:grid; gap:6px; margin-top:12px; color:#d9e0ea; font-size:12px }
+    input { width:100%; min-height:42px; padding:9px 11px; border:1px solid var(--line); border-radius:7px; color:var(--text); background:#111827 }
+    input:focus-visible,button:focus-visible,a:focus-visible { outline:2px solid var(--accent); outline-offset:2px }
+    .primary { width:100%; min-height:42px; margin-top:15px; border:0; border-radius:7px; color:#10201f; background:var(--accent); font-weight:750; cursor:pointer }
+    .error { min-height:20px; margin:10px 0 0; color:var(--danger); font-size:12px }
+    [hidden] { display:none !important }
+    .device-list { display:grid; gap:10px }
+    .list-toolbar { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:12px; color:var(--muted); font-size:12px }
+    .signout { min-height:36px; padding:0 12px; border:1px solid var(--line); border-radius:7px; background:#ffffff08; cursor:pointer }
+    .device { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:8px 16px; padding:15px; border:1px solid var(--line); border-radius:9px; background:#ffffff08 }
+    .device-name { font-size:15px; font-weight:750 }
+    .device-id { margin-top:3px; color:var(--muted); font:11px ui-monospace,monospace; overflow-wrap:anywhere }
+    .device-meta { grid-column:1/-1; display:flex; flex-wrap:wrap; gap:7px 14px; color:var(--muted); font-size:11px }
+    .presence { align-self:start; color:var(--muted); font-size:11px }
+    .presence[data-online="true"] { color:var(--accent) }
+    .empty { padding:20px 0; color:var(--muted); font-size:13px }
+    @media(max-width:430px) { .shell { width:calc(100% - 20px) } .device { gap:7px 10px; padding:12px } }
+  </style>
+  <link rel="stylesheet" href="./theme.css">
+</head>
+<body>
+  <div class="shell">
+    <header>
+      <div class="brand"><span class="mark">ϟ</span><span>Relay Studio</span></div>
+      <button class="nav-toggle" type="button" aria-label="Apri navigazione" aria-expanded="false" aria-controls="site-nav"><span></span><span></span><span></span></button>
+      <nav id="site-nav" class="site-nav"><a href="./" data-route="devices">Dispositivi</a><a href="./blinds.html" data-route="blinds">Tapparelle</a><a href="./system.html" data-route="system">Sistema</a></nav>
+    </header>
+    <section class="intro">
+      <div class="eyebrow">Rete e registrazioni</div>
+      <h1>Sistema</h1>
+      <p class="muted">Dispositivi associati al tuo account e ultimo contatto registrato.</p>
+    </section>
+    <section id="login-panel" class="panel login">
+      <h2>Accedi</h2>
+      <form id="login-form">
+        <label class="field">Email<input name="email" type="email" autocomplete="username" required></label>
+        <label class="field">Password<input name="password" type="password" autocomplete="current-password" required></label>
+        <button class="primary" type="submit">Accedi</button>
+      </form>
+      <p id="login-error" class="error" aria-live="polite"></p>
+    </section>
+    <main id="dashboard" hidden>
+      <div class="list-toolbar"><span id="device-count"></span><button id="signout" class="signout" type="button">Esci</button></div>
+      <p id="dashboard-error" class="error" aria-live="polite"></p>
+      <section id="device-list" class="device-list" aria-label="Dispositivi registrati"></section>
+    </main>
+  </div>
+  <script src="./site.js" defer></script>
+  <script type="module" src="./system.js"></script>
+</body>
+</html>

@@ -38,12 +38,15 @@
     .position-readout { color:var(--lime); font-size:13px; font-weight:800 }
     .controls h2 { margin:0 0 5px; font-size:17px }
     .controls > p { margin:0; color:var(--muted); font-size:12px }
-    .positions { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:7px; margin:17px 0 19px }
-    .position { min-width:0; min-height:64px; padding:7px 4px; border:1px solid var(--line); border-radius:8px; color:var(--text); background:#ffffff08; cursor:pointer; transition:background .15s,border-color .15s,transform .15s }
-    .position:hover { border-color:#d5ef7288; transform:translateY(-2px) }
-    .position[aria-pressed="true"] { border-color:var(--lime); color:#182018; background:var(--lime); font-weight:800 }
-    .position strong { display:block; font-size:17px }
-    .position span { display:block; overflow-wrap:anywhere; margin-top:2px; font-size:9px; line-height:1.15 }
+    .action-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; margin-top:18px }
+    .blind-action { display:flex; align-items:center; gap:12px; min-width:0; min-height:76px; padding:12px; border:1px solid var(--line); border-radius:10px; color:var(--text); background:linear-gradient(145deg,var(--panel2),var(--panel)); text-align:left; cursor:pointer; transition:transform .15s,border-color .15s }
+    .blind-action:hover { transform:translateY(-2px); border-color:#75e0d188 }
+    .blind-action:disabled { opacity:.55; cursor:wait; transform:none }
+    .blind-action strong,.blind-action small { display:block }
+    .blind-action span:last-child { min-width:0; overflow-wrap:anywhere }
+    .blind-action strong { font-size:14px }
+    .blind-action small { margin-top:4px; color:var(--muted); font-size:10px }
+    .action-symbol { display:grid; place-items:center; flex:0 0 38px; aspect-ratio:1; border-radius:9px; color:#10201f; background:var(--lime); font-size:22px; font-weight:800 }
     .field { display:grid; grid-template-columns:1fr 100px; align-items:center; gap:12px; padding-top:15px; border-top:1px solid var(--line); color:#d9e0ea; font-size:12px }
     input { width:100%; min-height:40px; padding:8px 10px; border:1px solid var(--line); border-radius:7px; color:var(--text); background:#111827; text-align:right }
     input:focus-visible,button:focus-visible,a:focus-visible { outline:2px solid var(--lime); outline-offset:2px }
@@ -52,111 +55,64 @@
     .notice[data-state="ok"] { color:var(--lime) }
     .notice[data-state="error"] { color:var(--red) }
     footer { margin-top:18px; color:var(--muted); font-size:11px }
-    @media(max-width:620px) { .workspace { grid-template-columns:1fr; gap:24px; padding:18px } .window { width:150px } .intro { padding-top:28px } }
-    @media(max-width:380px) { .wrap { width:calc(100% - 20px) } header { flex-wrap:wrap } nav { margin-left:auto } .position { min-height:59px } .position span { font-size:8px } }
+    @media(max-width:620px) { .workspace { grid-template-columns:1fr; gap:24px; padding:18px } .intro { padding-top:28px } }
+    @media(max-width:380px) { .wrap { width:calc(100% - 20px) } header { flex-wrap:wrap } nav { margin-left:auto } .action-grid { grid-template-columns:1fr; gap:8px } }
   </style>
+  <link rel="stylesheet" href="/theme.css">
 </head>
 <body>
   <div class="wrap">
     <header>
       <div class="brand"><span class="mark">ϟ</span><span>Relay Studio</span></div>
-      <nav><a href="/">Relè</a><a class="active" href="/blinds">Tapparelle</a><a href="/info">Sistema</a></nav>
+      <button class="nav-toggle" type="button" aria-label="Apri navigazione" aria-expanded="false" aria-controls="site-nav"><span></span><span></span><span></span></button>
+      <nav id="site-nav" class="site-nav"><a href="/" data-route="devices">Dispositivi</a><a href="/blinds" data-route="blinds">Tapparelle</a><a href="/info" data-route="system">Sistema</a></nav>
     </header>
     <section class="intro">
-      <div class="eyebrow">Controllo locale · ESP32</div>
-      <h1>Apri la luce.</h1>
-      <p class="sub">Scegli una posizione. La scheda gestisce pressione, rilascio e arresto delle tapparelle.</p>
+      <div class="eyebrow">Controllo locale</div>
+      <h1>Tapparelle</h1>
+      <p class="sub">Quattro comandi; la sequenza e i tempi sono gestiti dalla scheda.</p>
     </section>
-    <div id="connection" class="connection" data-state="offline" role="status"><span class="dot"></span><span id="connection-label">Connessione alla scheda…</span></div>
     <main class="workspace">
-      <div class="preview" aria-hidden="true">
-        <div class="window"><div class="glass"><div id="shade" class="shade"></div></div></div>
-        <div id="position-readout" class="position-readout">Posizione obiettivo · 0%</div>
-      </div>
       <section class="controls" aria-labelledby="control-title">
-        <h2 id="control-title">Posizione desiderata</h2>
-        <p>La scheda non rileva i movimenti manuali: per una percentuale stimata, parti da tutto giù.</p>
-        <div class="positions" role="group" aria-label="Posizione tapparelle">
-          <button class="position" type="button" data-position="0" aria-pressed="false"><strong>0%</strong><span>Tutto giù</span></button>
-          <button class="position" type="button" data-position="25" aria-pressed="false"><strong>25%</strong><span>Apertura</span></button>
-          <button class="position" type="button" data-position="50" aria-pressed="false"><strong>50%</strong><span>Metà</span></button>
-          <button class="position" type="button" data-position="75" aria-pressed="false"><strong>75%</strong><span>Apertura</span></button>
-          <button class="position" type="button" data-position="100" aria-pressed="false"><strong>100%</strong><span>Tutto su</span></button>
+        <h2 id="control-title">Comandi</h2>
+        <div class="action-grid" role="group" aria-label="Comandi tapparelle">
+          <button class="blind-action" type="button" data-action="down"><span class="action-symbol" aria-hidden="true">↓</span><span><strong>Tutto giù</strong><small>Impulso 3 secondi</small></span></button>
+          <button class="blind-action" type="button" data-action="up_short"><span class="action-symbol" aria-hidden="true">↗</span><span><strong>Alza poco</strong><small>Ciclo totale · 6,5 s</small></span></button>
+          <button class="blind-action" type="button" data-action="up_half"><span class="action-symbol" aria-hidden="true">↑</span><span><strong>Alza a metà</strong><small>Ciclo totale · 18,2 s</small></span></button>
+          <button class="blind-action" type="button" data-action="up"><span class="action-symbol" aria-hidden="true">⇧</span><span><strong>Alza tutto</strong><small>Impulso 3 secondi</small></span></button>
         </div>
-        <label class="field" for="travel-time"><span>Tempo di corsa completa<br><span class="unit">Misurato da tutto giù a tutto su</span></span><span><input id="travel-time" type="number" min="1" max="120" step="0.5" inputmode="decimal" placeholder="secondi"><span class="unit">secondi</span></span></label>
-        <p id="notice" class="notice" aria-live="polite">Posizione stimata nel tempo, non misurata da un sensore.</p>
+        <p id="notice" class="notice" aria-live="polite">Pronto</p>
       </section>
     </main>
-    <footer>Stima temporizzata, senza sensore di posizione. Il comando interrompe una sequenza precedente.</footer>
+    <footer>Un nuovo comando interrompe la sequenza precedente.</footer>
   </div>
+  <script src="/site.js" defer></script>
   <script>
-    const travelInput = document.querySelector("#travel-time");
     const notice = document.querySelector("#notice");
-    const positions = [...document.querySelectorAll(".position")];
-    const storedTravel = localStorage.getItem("blind-full-travel-seconds");
-    if (storedTravel) travelInput.value = storedTravel;
-
-    function validTravel() {
-      const seconds = Number(travelInput.value);
-      return Number.isFinite(seconds) && seconds >= 1 && seconds <= 120;
-    }
-
-    function setPreview(position) {
-      document.querySelector("#shade").style.setProperty("--shade-height", `${100 - position}%`);
-      document.querySelector("#position-readout").textContent = `Posizione obiettivo · ${position}%`;
-      positions.forEach((button) => button.setAttribute("aria-pressed", String(Number(button.dataset.position) === position)));
-    }
-
-    async function sendPosition(position) {
-      const needsTravelEstimate = position > 0 && position < 100;
-      if (needsTravelEstimate && !validTravel()) {
-        notice.dataset.state = "error";
-        notice.textContent = "Inserisci un tempo di corsa completo tra 1 e 120 secondi.";
-        travelInput.focus();
-        return;
-      }
-
-      positions.forEach((item) => item.disabled = true);
+    const actionButtons = [...document.querySelectorAll(".blind-action")];
+    async function sendAction(action, button) {
+      actionButtons.forEach((item) => item.disabled = true);
       notice.dataset.state = "";
-      notice.textContent = `Invio obiettivo ${position}% alla scheda…`;
-      setPreview(position);
-      const fullTravelMs = validTravel() ? Math.round(Number(travelInput.value) * 1000) : 0;
+      notice.textContent = `Invio comando: ${button.querySelector("strong").textContent}…`;
       try {
         const response = await fetch("/api/blinds", {
           method: "POST",
           headers: { "Content-Type": "application/x-www-form-urlencoded" },
-          body: new URLSearchParams({ target_position: String(position), full_travel_ms: String(fullTravelMs) }),
+          body: new URLSearchParams({ action }),
         });
         if (!response.ok) throw new Error("La scheda non ha accettato il comando.");
         notice.dataset.state = "ok";
-        notice.textContent = `Comando ${position}% ricevuto dalla scheda.`;
+        notice.textContent = "Comando ricevuto dalla scheda.";
       } catch (error) {
         notice.dataset.state = "error";
         notice.textContent = error.message || "Invio non riuscito.";
       } finally {
-        positions.forEach((item) => item.disabled = false);
+        actionButtons.forEach((item) => item.disabled = false);
       }
     }
-
-    positions.forEach((button) => button.addEventListener("click", () => sendPosition(Number(button.dataset.position))));
-    travelInput.addEventListener("change", () => {
-      if (validTravel()) localStorage.setItem("blind-full-travel-seconds", travelInput.value);
-    });
-
-    async function checkConnection() {
-      const connection = document.querySelector("#connection");
-      try {
-        const response = await fetch("/api/status", { cache: "no-store" });
-        if (!response.ok) throw new Error();
-        connection.dataset.state = "live";
-        document.querySelector("#connection-label").textContent = "Scheda raggiungibile";
-      } catch (_) {
-        connection.dataset.state = "error";
-        document.querySelector("#connection-label").textContent = "Scheda non raggiungibile";
-      }
-    }
-    checkConnection();
-    setInterval(checkConnection, 5000);
+    actionButtons.forEach((button) => button.addEventListener("click", () => {
+      void sendAction(button.dataset.action, button);
+    }));
   </script>
 </body>
 </html>

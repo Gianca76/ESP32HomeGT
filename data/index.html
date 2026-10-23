@@ -85,18 +85,20 @@
     @media(max-width:430px) { header { flex-wrap:wrap } nav { margin-left:auto } }
     @media(max-width:370px) { .wrap { width:calc(100% - 20px) } .grid { gap:8px } .relay { padding:12px; min-height:150px } nav a { padding:8px 9px } }
   </style>
+  <link rel="stylesheet" href="/theme.css">
 </head>
 <body>
   <div class="wrap">
     <header>
       <div class="brand"><span class="mark">ϟ</span><span>Relay Studio</span></div>
-      <nav><a class="active" href="/">Relè</a><a href="/blinds">Tapparelle</a><a href="/info">Sistema</a></nav>
+      <button class="nav-toggle" type="button" aria-label="Apri navigazione" aria-expanded="false" aria-controls="site-nav"><span></span><span></span><span></span></button>
+      <nav id="site-nav" class="site-nav"><a href="/" data-route="devices">Dispositivi</a><a href="/blinds" data-route="blinds">Tapparelle</a><a href="/info" data-route="system">Sistema</a></nav>
     </header>
 
     <section class="hero">
       <div class="eyebrow">ESP32 · Home control</div>
-      <h1>La tua casa,<br>un tocco alla volta.</h1>
-      <p class="sub">Stato dei quattro canali. I primi due comandano le tapparelle.</p>
+      <h1>Dispositivi</h1>
+      <p class="sub">Stato e controllo manuale dei quattro canali relè.</p>
     </section>
 
     <div class="connection">
@@ -109,14 +111,14 @@
     </div>
 
     <main class="grid">
-      <button class="relay" id="r0" disabled aria-pressed="false">
+      <button class="relay" id="r0" onclick="toggleRelay(0)" aria-pressed="false">
         <span class="top"><span class="number">01</span><span class="switch"></span></span>
-        <span class="name">Tapparella · salita</span> <span class="hint">Canale 1 · impulso automatico</span>
+        <span class="name">Tapparella · salita</span> <span class="hint">Canale 1 · impulso 3 s</span>
         <span class="state">SPENTO</span>
       </button>
-      <button class="relay" id="r1" disabled aria-pressed="false">
+      <button class="relay" id="r1" onclick="toggleRelay(1)" aria-pressed="false">
         <span class="top"><span class="number">02</span><span class="switch"></span></span>
-        <span class="name">Tapparella · discesa</span> <span class="hint">Canale 2 · impulso automatico</span>
+        <span class="name">Tapparella · discesa</span> <span class="hint">Canale 2 · impulso 3 s</span>
         <span class="state">SPENTO</span>
       </button>
       <button class="relay" id="r2" onclick="toggleRelay(2)" aria-pressed="false">
@@ -134,6 +136,7 @@
     <footer>Comandi inviati direttamente alla scheda sulla rete locale</footer>
   </div>
 
+  <script src="/site.js" defer></script>
   <script>
     let states = [false, false, false, false];
 
@@ -161,13 +164,20 @@
       const b = document.getElementById("r" + i);
       b.disabled = true;
       try {
-        const r = await fetch("/api/relay/" + (i + 1), {
+        const isBlindRelay = i < 2;
+        const response = await fetch(isBlindRelay ? "/api/blinds" : "/api/relay/" + (i + 1), {
           method:"POST",
           headers:{"Content-Type":"application/x-www-form-urlencoded"},
-          body:"state=" + (states[i] ? "0" : "1")
+          body:isBlindRelay
+            ? "action=" + (i === 0 ? "up" : "down")
+            : "state=" + (states[i] ? "0" : "1")
         });
-        const d = await r.json();
-        d.relays.forEach((v, n) => paint(n, v));
+        if (!response.ok) throw new Error();
+        if (isBlindRelay) await refresh();
+        else {
+          const d = await response.json();
+          d.relays.forEach((v, n) => paint(n, v));
+        }
       } catch (_) {
         document.getElementById("connection").textContent = "Invio comando non riuscito";
       }

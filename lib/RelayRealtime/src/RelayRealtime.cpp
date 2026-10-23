@@ -242,11 +242,8 @@ void RelayRealtime::handleBroadcast(
 
   if (event == "blind_command") {
     const uint64_t commandId = state["command_id"] | 0;
-    const uint32_t targetPosition = state["target_position"] | 255;
-    const uint32_t fullTravelMs = state["full_travel_ms"] | 0;
-    if (targetPosition <= 100) {
-      processBlindCommand(commandId, static_cast<uint8_t>(targetPosition), fullTravelMs);
-    }
+    const char* action = state["action"] | "";
+    processBlindCommand(commandId, action);
     return;
   }
 
@@ -450,20 +447,18 @@ bool RelayRealtime::loadRecentBlindCommand() {
 
   const JsonObjectConst command = commands[0];
   const uint64_t commandId = command["command_id"] | 0;
-  const uint32_t targetPosition = command["target_position"] | 255;
-  const uint32_t fullTravelMs = command["full_travel_ms"] | 0;
-  return targetPosition <= 100 && processBlindCommand(
-      commandId, static_cast<uint8_t>(targetPosition), fullTravelMs);
+  const char* action = command["action"] | "";
+  return processBlindCommand(commandId, action);
 }
 
 bool RelayRealtime::processBlindCommand(
-    uint64_t commandId, uint8_t targetPosition, uint32_t fullTravelMs) {
+    uint64_t commandId, const char* action) {
   if (commandId == 0 || commandId <= lastBlindCommandId_ ||
       targetHandler_ == nullptr || blindCommandHandler_ == nullptr) {
     return false;
   }
 
-  if (!blindCommandHandler_(commandId, targetPosition, fullTravelMs)) {
+  if (!blindCommandHandler_(commandId, action)) {
     return false;
   }
 

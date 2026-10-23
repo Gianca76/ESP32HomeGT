@@ -1,4 +1,5 @@
 #include <Arduino.h>
+#include <cstring>
 #include <WiFi.h>
 #include <ArduinoOTA.h>
 #include <WebServer.h>
@@ -35,15 +36,16 @@ constexpr uint8_t RELAY_OFF_LEVEL = LOW;
 
 bool relayStates[] = {false, false, false, false};
 bool networkServicesStarted = false;
-enum class BlindPhase : uint8_t { Idle, HoldUp, HoldDown, WaitForTarget, StopPulse };
-constexpr uint32_t BLIND_HOLD_MS = 3200;
-constexpr uint32_t BLIND_STOP_PULSE_MS = 250;
-constexpr uint32_t BLIND_MIN_TRAVEL_MS = 1000;
-constexpr uint32_t BLIND_MAX_TRAVEL_MS = 120000;
+enum class BlindAction : uint8_t { Down, UpShort, UpHalf, Up };
+enum class BlindPhase : uint8_t { Idle, HoldUp, HoldDown, WaitForStopPulse, StopPulse };
+constexpr uint32_t BLIND_HOLD_MS = 3000;
+constexpr uint32_t BLIND_STOP_PULSE_MS = 200;
+constexpr uint32_t BLIND_UP_SHORT_STOP_MS = 6300;
+constexpr uint32_t BLIND_UP_HALF_STOP_MS = 18000;
 BlindPhase blindPhase = BlindPhase::Idle;
-uint32_t blindPhaseStartedAt = 0;
-uint32_t blindTargetDelayMs = 0;
-uint8_t blindTargetPosition = 0;
+BlindAction blindAction = BlindAction::Down;
+uint32_t blindCommandStartedAt = 0;
+uint32_t blindPulseStartedAt = 0;
 
 bool applyRelayTarget(uint8_t relayNumber, bool enabled) {
   if (relayNumber < 1 || relayNumber > 4) {
@@ -73,68 +75,76 @@ void setRelayOutput(uint8_t relayNumber, bool enabled) {
   }
 }
 
-bool startBlindCommand(uint64_t commandId, uint8_t targetPosition, uint32_t fullTravelMs) {
-  const bool needsTravelEstimate = targetPosition > 0 && targetPosition < 100;
-  const bool validTravel = fullTravelMs >= BLIND_MIN_TRAVEL_MS &&
-                           fullTravelMs <= BLIND_MAX_TRAVEL_MS;
-  if (targetPosition > 100 || (needsTravelEstimate && !validTravel) ||
-      (!needsTravelEstimate && fullTravelMs != 0 && !validTravel)) {
+bool startBlindCommand(uint64_t commandId, const char* action) {
+  (void)commandId;
+  if (strcmp(action, "down") == 0) {
+    blindAction = BlindAction::Down;
+    blindPhase = BlindPhase::HoldDown;
+  } else if (strcmp(action, "up_short") == 0) {
+    blindAction = BlindAction::UpShort;
+    blindPhase = BlindPhase::HoldUp;
+  } else if (strcmp(action, "up_half") == 0) {
+    blindAction = BlindAction::UpHalf;
+    blindPhase = BlindPhase::HoldUp;
+  } else if (strcmp(action, "up") == 0) {
+    blindAction = BlindAction::Up;
+    blindPhase = BlindPhase::HoldUp;
+  } else {
     return false;
   }
 
   setRelayOutput(1, false);
   setRelayOutput(2, false);
   relayRealtime.setNetworkWorkDeferred(true);
-  blindPhase = targetPosition == 0 ? BlindPhase::HoldDown : BlindPhase::HoldUp;
-  blindTargetPosition = targetPosition;
-  blindTargetDelayMs = static_cast<uint32_t>(
-      (static_cast<uint64_t>(fullTravelMs) * targetPosition) / 100);
-  blindPhaseStartedAt = millis();
-  setRelayOutput(targetPosition == 0 ? 2 : 1, true);
+  blindCommandStartedAt = millis();
+  setRelayOutput(blindPhase == BlindPhase::HoldDown ? 2 : 1, true);
   return true;
 }
 
 void finishBlindSequence() {
   blindPhase = BlindPhase::Idle;
-  blindTargetPosition = 0;
-  blindTargetDelayMs = 0;
   relayRealtime.setNetworkWorkDeferred(false);
 }
 
 void processBlindScenario() {
   const uint32_t now = millis();
-  if (blindPhase == BlindPhase::HoldUp && now - blindPhaseStartedAt >= BLIND_HOLD_MS) {
+  const uint32_t elapsed = now - blindCommandStartedAt;
+  if (blindPhase == BlindPhase::HoldUp && elapsed >= BLIND_HOLD_MS) {
     setRelayOutput(1, false);
-    if (blindTargetPosition > 0 && blindTargetPosition < 100) {
-      blindPhase = BlindPhase::WaitForTarget;
-      blindPhaseStartedAt = now;
+    if (blindAction == BlindAction::UpShort || blindAction == BlindAction::UpHalf) {
+      blindPhase = BlindPhase::WaitForStopPulse;
     } else {
       finishBlindSequence();
     }
-  } else if (blindPhase == BlindPhase::HoldDown && now - blindPhaseStartedAt >= BLIND_HOLD_MS) {
+  } else if (blindPhase == BlindPhase::HoldDown && elapsed >= BLIND_HOLD_MS) {
     setRelayOutput(2, false);
     finishBlindSequence();
-  } else if (blindPhase == BlindPhase::WaitForTarget &&
-             now - blindPhaseStartedAt >= blindTargetDelayMs) {
+  } else if (blindPhase == BlindPhase::WaitForStopPulse &&
+             elapsed >= (blindAction == BlindAction::UpShort
+                 ? BLIND_UP_SHORT_STOP_MS : BLIND_UP_HALF_STOP_MS)) {
     blindPhase = BlindPhase::StopPulse;
-    blindPhaseStartedAt = now;
+    blindPulseStartedAt = now;
     setRelayOutput(2, true);
   } else if (blindPhase == BlindPhase::StopPulse &&
-             now - blindPhaseStartedAt >= BLIND_STOP_PULSE_MS) {
+             now - blindPulseStartedAt >= BLIND_STOP_PULSE_MS) {
     setRelayOutput(2, false);
     finishBlindSequence();
   }
 }
 
-void sendPage(const char* path) {
+void sendAsset(const char* path, const char* contentType) {
   File page = LittleFS.open(path, "r");
   if (!page) {
-    server.send(503, "text/plain; charset=utf-8", "Contenuto web non disponibile");
+    server.send(503, "text/plain; charset=utf-8", "Risorsa web non disponibile");
     return;
   }
 
-  server.streamFile(page, "text/html; charset=utf-8");
+  server.streamFile(page, contentType);
   page.close();
+}
+
+void sendPage(const char* path) {
+  sendAsset(path, "text/html; charset=utf-8");
 }
 
 String jsonEscape(const String& value) {
@@ -184,15 +194,14 @@ void handleRelay(int index) {
 }
 
 void handleBlindCommand() {
-  if (!server.hasArg("target_position") || !server.hasArg("full_travel_ms")) {
-    server.send(400, "application/json", "{\"error\":\"posizione o tempo di corsa mancanti\"}");
+  if (!server.hasArg("action")) {
+    server.send(400, "application/json", "{\"error\":\"azione mancante\"}");
     return;
   }
 
-  const uint32_t targetPosition = strtoul(server.arg("target_position").c_str(), nullptr, 10);
-  const uint32_t fullTravelMs = strtoul(server.arg("full_travel_ms").c_str(), nullptr, 10);
-  if (targetPosition > 100 || !startBlindCommand(0, static_cast<uint8_t>(targetPosition), fullTravelMs)) {
-    server.send(400, "application/json", "{\"error\":\"posizione o tempo di corsa non valido\"}");
+  const String action = server.arg("action");
+  if (!startBlindCommand(0, action.c_str())) {
+    server.send(400, "application/json", "{\"error\":\"azione non valida\"}");
     return;
   }
 
@@ -206,6 +215,7 @@ void sendInfo() {
                         String((seconds / 60) % 60) + "m";
 
   String json = "{";
+  json += "\"deviceId\":\"" + jsonEscape(String(DEVICE_ID)) + "\",";
   json += "\"ip\":\"" + jsonEscape(WiFi.localIP().toString()) + "\",";
   json += "\"ssid\":\"" + jsonEscape(WiFi.SSID()) + "\",";
   json += "\"rssi\":" + String(WiFi.RSSI()) + ",";
@@ -246,6 +256,14 @@ void setup() {
 
   server.on("/info", HTTP_GET, []() {
     sendPage("/info.html");
+  });
+
+  server.on("/theme.css", HTTP_GET, []() {
+    sendAsset("/theme.css", "text/css; charset=utf-8");
+  });
+
+  server.on("/site.js", HTTP_GET, []() {
+    sendAsset("/site.js", "application/javascript; charset=utf-8");
   });
 
   server.on("/api/status", HTTP_GET, sendRelayStatus);

@@ -24,10 +24,11 @@
     .back { display:block; margin-top:20px; color:var(--cyan); text-decoration:none }
     @media(max-width:360px) { .grid { grid-template-columns:1fr } .wide { grid-column:auto } }
   </style>
+  <link rel="stylesheet" href="/theme.css">
 </head>
 <body>
   <div class="wrap">
-    <header><div class="brand">ϟ Relay Studio</div><nav><a href="/">Relè</a><a href="/blinds">Tapparelle</a><a class="active" href="/info">Sistema</a></nav></header>
+    <header><div class="brand">ϟ Relay Studio</div><button class="nav-toggle" type="button" aria-label="Apri navigazione" aria-expanded="false" aria-controls="site-nav"><span></span><span></span><span></span></button><nav id="site-nav" class="site-nav"><a href="/" data-route="devices">Dispositivi</a><a href="/blinds" data-route="blinds">Tapparelle</a><a href="/info" data-route="system">Sistema</a></nav></header>
     <h1>Il sistema</h1>
     <p class="sub">Stato e informazioni utili sulla scheda.</p>
     <main class="grid">
@@ -38,9 +39,11 @@
       <div class="item"><div class="label">Chip</div><div class="value" id="chip">…</div></div>
       <div class="item"><div class="label">Flash</div><div class="value" id="flash">…</div></div>
       <div class="item wide"><div class="label">Memoria libera</div><div class="value" id="heap">…</div></div>
+      <div class="item wide"><div class="label">Dispositivo registrato</div><div class="value" id="device-id">…</div></div>
     </main>
     <a class="back" href="/">← Torna ai controlli</a>
   </div>
+  <script src="/site.js" defer></script>
   <script>
     async function updateInfo() {
       const d = await (await fetch("/api/info", {cache:"no-store"})).json();
@@ -51,6 +54,7 @@
       document.getElementById("chip").textContent = d.chip + " · rev. " + d.revision;
       document.getElementById("flash").textContent = d.flash;
       document.getElementById("heap").textContent = d.heap;
+      document.getElementById("device-id").textContent = d.deviceId;
     }
     updateInfo();
     setInterval(updateInfo, 5000);

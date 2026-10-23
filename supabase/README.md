@@ -10,7 +10,7 @@ npx supabase db push
 npx supabase functions deploy register-device --no-verify-jwt
 ```
 
-The migrations protect the exposed tables with RLS. Keep **Realtime → Settings → Allow public access** disabled so `device:<device_id>` requires a signed-in user. `blind_commands` records each requested target position (0–100%) and, for intermediate positions, the calibrated full-travel time; its insert trigger broadcasts the typed command to the private device topic. On reconnect, the device retrieves only the latest command from the previous five minutes and deduplicates it by command ID stored in NVS, so old movements are not replayed after a long outage.
+The migrations protect the exposed tables with RLS. Keep **Realtime → Settings → Allow public access** disabled so `device:<device_id>` requires a signed-in user. `blind_commands` records the requested action (`down`, `up_short`, `up_half`, or `up`); its insert trigger broadcasts that action to the private device topic. On reconnect, the device retrieves only the latest command from the previous five minutes and deduplicates it by command ID stored in NVS, so old movements are not replayed after a long outage.
 
 ## Create users and assign a device
 
@@ -42,4 +42,4 @@ Add each device's `DEVICE_ID` and `DEVICE_REGISTRY_TOKEN` to the server-side `DE
 
 `docs/config.js` contains the project URL and **publishable** key, which is intended to be public. RLS is the authorization boundary. In the repository, select **Settings → Pages → GitHub Actions**; pushes to `main` that change `docs/` deploy the remote dashboard. The dashboard login uses the human owner Auth account.
 
-The LAN page in `data/` remains served by the ESP32 and does not require Supabase. Its position commands run on the board; the remote page only records and broadcasts a target. To update the local pages, upload LittleFS separately with PlatformIO `uploadfs`.
+The LAN page in `data/` remains served by the ESP32 and does not require Supabase. Both local and remote pages send a named action; the firmware owns the relay timing. To update the local pages, upload LittleFS separately with PlatformIO `uploadfs`.

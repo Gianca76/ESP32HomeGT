@@ -3,11 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <meta name="theme-color" content="#eff2e9">
+  <meta name="theme-color" content="#101522">
   <title>Tapparelle · Relay Studio</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet">
   <style>
     :root { color-scheme:light; --paper:#eff2e9; --ink:#1d2a24; --muted:#69766e; --green:#2c5544; --lime:#d3ed6a; --line:#20332a26; --red:#a64e42; --white:#fbfcf8 }
     * { box-sizing:border-box }
@@ -71,22 +68,33 @@
     .notice { min-height:36px; margin:14px 0 0; color:var(--muted); font-size:12px }
     .notice[data-state="ok"] { color:var(--green) }
     .notice[data-state="error"] { color:var(--red) }
+    .action-console { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px }
+    .blind-action { display:flex; align-items:center; gap:12px; min-width:0; min-height:84px; padding:13px; border:1px solid var(--line); border-radius:9px; color:var(--text); background:linear-gradient(145deg,var(--panel2),var(--panel)); text-align:left; cursor:pointer; transition:transform .15s,border-color .15s }
+    .blind-action:hover { transform:translateY(-2px); border-color:#75e0d188 }
+    .blind-action:disabled { opacity:.55; cursor:wait; transform:none }
+    .blind-action strong,.blind-action small { display:block }
+    .blind-action span:last-child { min-width:0; overflow-wrap:anywhere }
+    .blind-action strong { font-size:14px }
+    .blind-action small { margin-top:4px; color:var(--muted); font-size:10px }
+    .action-symbol { display:grid; place-items:center; flex:0 0 38px; aspect-ratio:1; border-radius:9px; color:#10201f; background:var(--lime); font-size:22px; font-weight:800 }
     footer { margin-top:18px; color:var(--muted); font-size:11px }
     @media(max-width:700px) { header { flex-wrap:wrap } .connection { margin-left:auto } .console { grid-template-columns:1fr; gap:23px; padding:19px } .window { width:155px } .intro { padding-top:30px } }
     @media(max-width:400px) { .shell { width:calc(100% - 20px) } header { gap:10px } .brand { font-size:13px } .nav a { padding:7px 8px } .positions { gap:5px } .position { min-height:62px } .position span { font-size:8px } .toolbar { align-items:stretch; flex-direction:column } }
+    @media(max-width:340px) { .action-console { grid-template-columns:1fr } }
   </style>
+  <link rel="stylesheet" href="./theme.css">
 </head>
 <body>
   <div class="shell">
     <header>
       <div class="brand"><span class="mark">ϟ</span><span>Relay Studio</span></div>
-      <nav class="nav"><a class="active" href="./blinds.html">Tapparelle</a><a href="./">Relè</a></nav>
-      <div id="connection" class="connection" data-state="offline" role="status"><span class="dot"></span><span id="connection-label">Disconnesso</span></div>
+      <button class="nav-toggle" type="button" aria-label="Apri navigazione" aria-expanded="false" aria-controls="site-nav"><span></span><span></span><span></span></button>
+      <nav id="site-nav" class="site-nav"><a href="./" data-route="devices">Dispositivi</a><a href="./blinds.html" data-route="blinds">Tapparelle</a><a href="./system.html" data-route="system">Sistema</a></nav>
     </header>
     <section class="intro">
       <div class="eyebrow">Controllo remoto · ESP32</div>
-      <h1>Apri la luce.</h1>
-      <p class="muted">Un obiettivo di posizione alla volta. La sequenza viene eseguita dalla scheda.</p>
+      <h1>Tapparelle</h1>
+      <p class="muted">Quattro azioni semplici, tempi gestiti dalla scheda.</p>
     </section>
     <section id="login-panel" class="panel login">
       <h2>Accedi</h2>
@@ -98,34 +106,17 @@
       <p id="login-error" class="error" aria-live="polite"></p>
     </section>
     <main id="dashboard" hidden>
-      <div class="toolbar">
-        <label class="field device-picker">Dispositivo<select id="device-select"></select></label>
-        <button id="signout" class="signout" type="button">Esci</button>
-      </div>
-      <div id="device-meta" class="device-meta" aria-live="polite"></div>
       <p id="dashboard-error" class="error" aria-live="polite"></p>
-      <section class="console">
-        <div class="preview" aria-hidden="true">
-          <div class="window"><div class="glass"><div id="shade" class="shade"></div></div></div>
-          <div id="position-readout" class="position-readout">Obiettivo · 0%</div>
-        </div>
-        <div class="controls">
-          <h2>Posizione desiderata</h2>
-          <p>La scheda non rileva i movimenti manuali: per una percentuale stimata, parti da tutto giù.</p>
-          <div class="positions" role="group" aria-label="Posizione tapparelle">
-            <button class="position" type="button" data-position="0" aria-pressed="false"><strong>0%</strong><span>Tutto giù</span></button>
-            <button class="position" type="button" data-position="25" aria-pressed="false"><strong>25%</strong><span>Apertura</span></button>
-            <button class="position" type="button" data-position="50" aria-pressed="false"><strong>50%</strong><span>Metà</span></button>
-            <button class="position" type="button" data-position="75" aria-pressed="false"><strong>75%</strong><span>Apertura</span></button>
-            <button class="position" type="button" data-position="100" aria-pressed="false"><strong>100%</strong><span>Tutto su</span></button>
-          </div>
-          <label class="travel-field" for="travel-time"><span>Tempo corsa completa<span class="unit">Da completamente chiusa a aperta</span></span><span><input id="travel-time" type="number" min="1" max="120" step="0.5" inputmode="decimal" placeholder="secondi"><span class="unit">secondi</span></span></label>
-          <p id="notice" class="notice" aria-live="polite">Posizione stimata nel tempo, non misurata da un sensore.</p>
-        </div>
+      <section class="action-console" aria-label="Comandi tapparelle">
+        <button class="blind-action" type="button" data-action="down"><span class="action-symbol" aria-hidden="true">↓</span><span><strong>Tutto giù</strong><small>Impulso 3 secondi</small></span></button>
+        <button class="blind-action" type="button" data-action="up_short"><span class="action-symbol" aria-hidden="true">↗</span><span><strong>Alza poco</strong><small>Ciclo totale · 6,5 s</small></span></button>
+        <button class="blind-action" type="button" data-action="up_half"><span class="action-symbol" aria-hidden="true">↑</span><span><strong>Alza a metà</strong><small>Ciclo totale · 18,2 s</small></span></button>
+        <button class="blind-action" type="button" data-action="up"><span class="action-symbol" aria-hidden="true">⇧</span><span><strong>Alza tutto</strong><small>Impulso 3 secondi</small></span></button>
       </section>
-      <footer>La posizione è stimata nel tempo, non rilevata da un sensore. Ogni comando interrompe la sequenza in corso.</footer>
+      <p id="notice" class="notice" aria-live="polite">Pronto</p>
     </main>
   </div>
+  <script src="./site.js" defer></script>
   <script type="module" src="./app-blinds.js"></script>
 </body>
 </html>
